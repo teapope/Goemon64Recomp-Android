@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Goemon 64: Recompiled</string>
+    <string name="loading">Loading…</string>
+    <string name="settings">Settings</string>
+    
+    <!-- Permissions -->
+    <string name="permission_storage_title">Storage Permission Required</string>
+    <string name="permission_storage_message">Storage access is needed to load game files and save data.</string>
+    <string name="permission_denied">Permission denied. The app cannot function without storage access.</string>
+    
+    <!-- ROM Selection -->
+    <string name="select_rom">Select ROM</string>
+    <string name="rom_not_found">No ROM found</string>
+    <string name="rom_selection_message">Please select your Mystical Ninja Starring Goemon ROM (US Version)</string>
+    <string name="rom_invalid">Invalid ROM. Please ensure you have the correct US N64 version.</string>
+    <string name="rom_loading">Loading ROM…</string>
+    <string name="rom_loaded">ROM loaded successfully</string>
+    
+    <!-- Game Status -->
+    <string name="game_starting">Starting game…</string>
+    <string name="game_paused">Game Paused</string>
+    <string name="game_error">Game Error</string>
+    
+    <!-- Errors -->
+    <string name="error_init_failed">Failed to initialize engine</string>
+    <string name="error_rom_load_failed">Failed to load ROM</string>
+    <string name="error_game_start_failed">Failed to start game</string>
+    <string name="error_no_opengl_es3">Your device does not support OpenGL ES 3.0</string>
+    <string name="error_insufficient_storage">Insufficient storage space</string>
+    
+    <!-- Settings Categories -->
+    <string name="settings_graphics">Graphics</string>
+    <string name="settings_audio">Audio</string>
+    <string name="settings_controls">Controls</string>
+    <string name="settings_game">Game</string>
+    <string name="settings_about">About</string>
+    
+    <!-- Graphics Settings -->
+    <string name="graphics_resolution">Resolution</string>
+    <string name="graphics_framerate">Framerate Limit</string>
+    <string name="graphics_vsync">VSync</string>
+    <string name="graphics_msaa">Anti-Aliasing (MSAA)</string>
+    <string name="graphics_aspect_ratio">Aspect Ratio</string>
+    <string name="graphics_widescreen">Widescreen</string>
+    
+    <!-- Audio Settings -->
+    <string name="audio_master_volume">Master Volume</string>
+    <string name="audio_music_volume">Music Volume</string>
+    <string name="audio_sfx_volume">Sound Effects Volume</string>
+    
+    <!-- Control Settings -->
+    <string name="controls_controller">Controller</string>
+    <string name="controls_touch">Touch Controls</string>
+    <string name="controls_gyro">Gyro Aiming</string>
+    <string name="controls_deadzone">Stick Deadzone</string>
+    <string name="controls_sensitivity">Sensitivity</string>
+    
+    <!-- Game Settings -->
+    <string name="game_autosave">Autosave</string>
+    <string name="game_language">Language</string>
+    <string name="game_mods">Mods</string>
+    <string name="game_reset">Reset Game</string>
+    
+    <!-- About -->
+    <string name="about_version">Version</string>
+    <string name="about_original">Original Project</string>
+    <string name="about_github">GitHub Repository</string>
+    <string name="about_license">License: GPL-3.0</string>
+    <string name="about_disclaimer">This project does not include any game assets. You must own the original game.</string>
+    
+    <!-- Dialogs -->
+    <string name="dialog_ok">OK</string>
+    <string name="dialog_cancel">Cancel</string>
+    <string name="dialog_yes">Yes</string>
+    <string name="dialog_no">No</string>
+    <string name="dialog_exit">Exit</string>
+    <string name="dialog_retry">Retry</string>
+    
+    <!-- Menu -->
+    <string name="menu_resume">Resume</string>
+    <string name="menu_settings">Settings</string>
+    <string name="menu_mods">Mods</string>
+    <string name="menu_save">Save</string>
+    <string name="menu_load">Load</string>
+    <string name="menu_exit">Exit to Menu</string>
+    
+    <!-- Mods -->
+    <string name="mods_title">Installed Mods</string>
+    <string name="mods_none">No mods installed</string>
+    <string name="mods_install">Install Mod</string>
+    <string name="mods_folder">Mods folder: /sdcard/Goemon64Recomp/mods/</string>
+    <string name="mods_enable">Enable</string>
+    <string name="mods_disable">Disable</string>
+    <string name="mods_remove">Remove</string>
+    
+    <!-- First Launch -->
+    <string name="first_launch_title">Welcome!</string>
+    <string name="first_launch_message">Welcome to Goemon 64: Recompiled for Android!\n\nThis port requires:\n• A legally owned copy of Mystical Ninja Starring Goemon (US N64 Version)\n• Storage permissions\n• A controller (recommended)\n\nPlease grant storage permissions on the next screen.</string>
+</resources>

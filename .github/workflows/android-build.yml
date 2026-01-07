@@ -1,0 +1,198 @@
+name: Android Build
+
+on:
+  push:
+    branches: [ main, develop, android ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        build-type: [debug, release]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+        
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'gradle'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Install Android NDK
+      run: |
+        echo "y" | ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "ndk;26.1.10909125"
+        echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/26.1.10909125" >> $GITHUB_ENV
+        
+    - name: Cache Gradle packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Cache CMake build
+      uses: actions/cache@v4
+      with:
+        path: |
+          Android/app/.cxx
+        key: ${{ runner.os }}-cmake-${{ hashFiles('**/CMakeLists.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-cmake-
+          
+    - name: Grant execute permission for gradlew
+      run: chmod +x Android/gradlew
+      
+    - name: Build ${{ matrix.build-type }} APK
+      working-directory: ./Android
+      run: |
+        if [ "${{ matrix.build-type }}" == "release" ]; then
+          ./gradlew assembleRelease
+        else
+          ./gradlew assembleDebug
+        fi
+        
+    - name: Get APK path
+      id: apk-path
+      run: |
+        if [ "${{ matrix.build-type }}" == "release" ]; then
+          echo "path=Android/app/build/outputs/apk/release/app-release-unsigned.apk" >> $GITHUB_OUTPUT
+          echo "name=goemon64-recomp-android-release-${{ github.sha }}.apk" >> $GITHUB_OUTPUT
+        else
+          echo "path=Android/app/build/outputs/apk/debug/app-debug.apk" >> $GITHUB_OUTPUT
+          echo "name=goemon64-recomp-android-debug-${{ github.sha }}.apk" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.apk-path.outputs.name }}
+        path: ${{ steps.apk-path.outputs.path }}
+        retention-days: 30
+        
+    - name: Get APK size
+      run: |
+        APK_SIZE=$(du -h ${{ steps.apk-path.outputs.path }} | cut -f1)
+        echo "APK Size: $APK_SIZE"
+        echo "APK_SIZE=$APK_SIZE" >> $GITHUB_ENV
+        
+    - name: Comment PR with build info
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const buildType = '${{ matrix.build-type }}';
+          const apkSize = '${{ env.APK_SIZE }}';
+          const artifactName = '${{ steps.apk-path.outputs.name }}';
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `✅ Android ${buildType} build completed!\n\n📦 APK Size: ${apkSize}\n📁 Artifact: \`${artifactName}\``
+          });
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'gradle'
+        
+    - name: Grant execute permission for gradlew
+      run: chmod +x Android/gradlew
+      
+    - name: Run unit tests
+      working-directory: ./Android
+      run: ./gradlew test
+      
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: Android/app/build/test-results/
+        retention-days: 7
+
+  lint:
+    name: Lint Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'gradle'
+        
+    - name: Grant execute permission for gradlew
+      run: chmod +x Android/gradlew
+      
+    - name: Run lint
+      working-directory: ./Android
+      run: ./gradlew lint
+      
+    - name: Upload lint results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: lint-results
+        path: Android/app/build/reports/lint-results-*.html
+        retention-days: 7
+
+  release:
+    name: Create Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, test, lint]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          artifacts/**/*.apk
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
