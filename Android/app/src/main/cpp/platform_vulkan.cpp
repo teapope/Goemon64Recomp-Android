@@ -2,7 +2,6 @@
 #include "platform_vulkan.h"
 #include <SDL.h>
 #include <SDL_vulkan.h>
-#include <android/native_window.h>
 #include <android/log.h>
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  "GOEMON_VK", __VA_ARGS__)
@@ -21,13 +20,6 @@ static VkPresentModeKHR ChoosePresentMode(const std::vector<VkPresentModeKHR>& m
     for (auto m : modes) if (m == VK_PRESENT_MODE_FIFO_KHR)    return m; // guaranteed
     for (auto m : modes) if (m == VK_PRESENT_MODE_IMMEDIATE_KHR) return m;
     return VK_PRESENT_MODE_FIFO_KHR;
-}
-
-static uint32_t ChooseImageCount(const VkSurfaceCapabilitiesKHR& caps) {
-    uint32_t desired = 3; // triple buffer
-    if (caps.maxImageCount > 0 && desired > caps.maxImageCount) desired = caps.maxImageCount;
-    if (desired < caps.minImageCount) desired = caps.minImageCount;
-    return desired;
 }
 
 bool VkCreateInstanceForAndroid(VkInstance* outInstance, const std::vector<const char*>& extraExts) {
@@ -76,7 +68,7 @@ bool CreateDeviceAndSwapchain(SDL_Window* win, PlatformVkDevice& dev) {
     if (physCount == 0) { LOGE("No Vulkan physical devices"); return false; }
     std::vector<VkPhysicalDevice> phys(physCount);
     vkEnumeratePhysicalDevices(dev.instance, &physCount, phys.data());
-    dev.phys = phys[0]; // TODO: choose better
+    dev.phys = phys[0]; // TODO: choose best
 
     // Queue family selection
     uint32_t qCount = 0; vkGetPhysicalDeviceQueueFamilyProperties(dev.phys, &qCount, nullptr);
@@ -103,29 +95,25 @@ bool CreateDeviceAndSwapchain(SDL_Window* win, PlatformVkDevice& dev) {
     }
     vkGetDeviceQueue(dev.device, gfxFam, 0, &dev.graphicsQueue);
 
-    // Swapchain selection
+    // Swapchain
     VkSurfaceCapabilitiesKHR caps{}; vkGetPhysicalDeviceSurfaceCapabilitiesKHR(dev.phys, dev.surface, &caps);
     uint32_t fmtCount=0; vkGetPhysicalDeviceSurfaceFormatsKHR(dev.phys, dev.surface, &fmtCount, nullptr);
     std::vector<VkSurfaceFormatKHR> fmts(fmtCount); vkGetPhysicalDeviceSurfaceFormatsKHR(dev.phys, dev.surface, &fmtCount, fmts.data());
     uint32_t pmCount=0; vkGetPhysicalDevicePresentModesKHR(dev.phys, dev.surface, &pmCount, nullptr);
     std::vector<VkPresentModeKHR> pms(pmCount); vkGetPhysicalDevicePresentModesKHR(dev.phys, dev.surface, &pmCount, pms.data());
+
     auto chosenFmt = ChooseSurfaceFormat(fmts);
     auto chosenPm  = ChoosePresentMode(pms);
     dev.surfaceFormat = chosenFmt.format;
     dev.colorSpace    = chosenFmt.colorSpace;
     dev.presentMode   = chosenPm;
 
-    if (caps.currentExtent.width == 0xFFFFFFFF) {
-        int w, h; SDL_Vulkan_GetDrawableSize(win, &w, &h);
-        dev.extent = { (uint32_t)w, (uint32_t)h };
-    } else {
-        dev.extent = caps.currentExtent;
-    }
-    dev.imageCount = std::max(caps.minImageCount, std::min(3u, caps.maxImageCount ? caps.maxImageCount : 3u));
+    int w, h; SDL_Vulkan_GetDrawableSize(win, &w, &h);
+    dev.extent = { (uint32_t)w, (uint32_t)h };
 
     VkSwapchainCreateInfoKHR sci{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
     sci.surface = dev.surface;
-    sci.minImageCount = dev.imageCount;
+    sci.minImageCount = std::max(caps.minImageCount, std::min(3u, caps.maxImageCount ? caps.maxImageCount : 3u));
     sci.imageFormat = dev.surfaceFormat;
     sci.imageColorSpace = dev.colorSpace;
     sci.imageExtent = dev.extent;
@@ -143,9 +131,7 @@ bool CreateDeviceAndSwapchain(SDL_Window* win, PlatformVkDevice& dev) {
 
     uint32_t ic = 0; vkGetSwapchainImagesKHR(dev.device, dev.swapchain, &ic, nullptr);
     dev.swapImages.resize(ic); vkGetSwapchainImagesKHR(dev.device, dev.swapchain, &ic, dev.swapImages.data());
-    dev.imageCount = ic;
 
-    // Create image views
     dev.swapViews.resize(ic);
     for (uint32_t i=0;i<ic;i++) {
         VkImageViewCreateInfo ivci{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};

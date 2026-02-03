@@ -1,55 +1,38 @@
 
 # Goemon64Recomp-Android (A1: RT64 + Vulkan)
 
-This is a **starter Android project** that embeds the Goemon64Recomp core and targets **RT64 (Vulkan via plume)** on Android. It reuses the proven app structure from 2S2H-style ports (SDL + CMake + NDK) and is tuned for handhelds like the **AYN Thor Pro**.
+Starter Android project to run **Goemon64Recomp** on Android using **RT64 (Vulkan via plume)**. Built around an SDL2 + CMake + NDK shell and tuned for handhelds like the **AYN Thor Pro**.
 
-## What’s included
-- Android Gradle project (`Android/`) ready for Android Studio
-- `SDL + Vulkan` bootstrap with a triple-buffered swapchain
-- Placeholder RT64 adapter hooks (`rt64_adapter.*`)
-- First-run wiring points for ROM selection / config (stubbed; integrate your UI)
-- **No copyrighted game assets** are included.
+## Submodules expected
+```bash
+# SDL2 (Android Activity + native)
+git submodule add https://github.com/libsdl-org/SDL third_party/SDL2
+# Goemon64Recomp (upstream sources used by the Android target)
+git submodule add https://github.com/klorfmorf/Goemon64Recomp Goemon64Recomp
+# RT64 (if not already vendored by upstream)
+git submodule add https://github.com/rt64/rt64 third_party/rt64
+```
 
-## What you still need to add
-1. **Upstream sources**
-   - Add the Goemon64Recomp repository as a submodule at the repo root (or point the CMake to your local path):
-     ```bash
-     git submodule add https://github.com/klorfmorf/Goemon64Recomp Goemon64Recomp
-     ```
-     Ensure headers are visible under `include/` and sources under `src/`, or update `Android/app/src/main/cpp/CMakeLists.txt`.
-2. **RT64 / plume**
-   - If RT64 isn’t already in upstream as a submodule, add it here:
-     ```bash
-     git submodule add https://github.com/rt64/rt64 third_party/rt64
-     ```
-     Then update include/link paths under CMake.
-3. **SDL2** (with Android Java + native)
-   - Add SDL2 as a submodule:
-     ```bash
-     git submodule add https://github.com/libsdl-org/SDL third_party/SDL2
-     ```
-     The Gradle/CMake setup expects to build it from source with **Vulkan** enabled and use its Java Activity (`org.libsdl.app.SDLActivity`).
+> You can also point CMake at an existing RT64 by passing `-DRT64_DIR=/absolute/or/relative/path`.
 
 ## Build (Android Studio)
-1. Open `Android/` in **Android Studio** (SDK 34, NDK r26+ recommended).
-2. Let Gradle sync. Ensure the NDK path is set (Preferences → SDK → NDK).
-3. Select **app** → **assembleDebug**.
-4. Install the resulting APK on your device (e.g., AYN Thor Pro).
+1. Open `Android/` in **Android Studio** (SDK 34, NDK r26+).
+2. Let Gradle sync → Build **app** → **assembleDebug**.
+3. Install the APK on your device.
 
-## Run
-- First run will clear the screen via Vulkan (RT64 not yet wired).
-- Implement ROM selection and Goemon init in `sdl_app.cpp`.
-- Wire RT64 initialization in `rt64_adapter.cpp` using your Vulkan device/surface.
+## What’s wired
+- **SDL + Vulkan** windowing, device/swapchain, triple buffering, mailbox→fifo fallback.
+- **RT64 adapter hooks** – autodetects your RT64 path and links either via its CMake target or sources-only.
+- **Audio** – simple SDL_Audio stub.
 
-## Files to fill in
-- `Android/app/src/main/cpp/rt64_adapter.cpp`: call into RT64 (plume Vulkan backend) to create device resources and render a frame.
-- `Android/app/src/main/assets/`: place controller DB (e.g., `recompcontrollerdb.txt`) and any shader cache seeds.
-- `Android/app/src/main/java/`: you may add UI for first-run ROM picker using Storage Access Framework, or reuse SDL’s activity with native dialogs.
+## TODO for you
+- Replace the **Goemon source lists** in CMake with explicit files from your upstream (avoid GLOB in production).
+- Implement `RT64_InitWithVulkan/Render/Resize/Shutdown` with your RT64 headers and API calls.
+- Add first‑run ROM picker (SAF) UI based on your preference.
 
-## Notes
-- Defaults: **no MSAA**, mailbox→fifo present modes, RGBA8 SRGB format.
-- Storage: prefer a root-level app folder (avoid direct writes under `Android/data` on Android 13–15).
-- Performance: persist Vulkan pipeline cache under `files/rt64_cache/`.
+## Defaults
+- No MSAA initially. RGBA8 + SRGB, triple‑buffered.
+- Pipeline cache: persist to app files dir (to be added when you hook RT64’s cache API).
 
 ## License
-This scaffold is provided as-is; keep original licenses for upstream projects (Goemon64Recomp GPL-3.0, SDL2 zlib, etc.).
+This scaffold is provided as-is; retain upstream licenses (Goemon64Recomp GPL-3.0, SDL2 zlib, etc.).

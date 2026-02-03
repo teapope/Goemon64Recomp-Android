@@ -45,9 +45,9 @@ extern "C" int SDL_main(int argc, char* argv[]) {
             }
             // TODO: map SDL input events to Goemon input system
         }
-        // TODO: call game tick/update
+        // TODO: call Goemon game tick/update here
         RT64_RenderFrame();
-        SDL_Delay(0); // Yield; use proper frame pacing later
+        SDL_Delay(0);
     }
     ShutdownRenderer();
     SDL_Quit();
