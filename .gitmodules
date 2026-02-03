@@ -21,3 +21,6 @@
 [submodule "lib/mnsg"]
 	path = lib/mnsg
 	url = https://github.com/klorfmorf/mnsg
+[submodule "lib/SDL"]
+	path = lib/SDL
+	url = https://github.com/libsdl-org/SDL.git

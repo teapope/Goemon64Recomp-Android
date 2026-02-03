@@ -16,9 +16,54 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_SIMULATE_ID STREQUAL "M
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-everything /W4")
 endif()
 
+# Detect Android build
+if(ANDROID)
+    message(STATUS "Building for Android")
+    set(CMAKE_CXX_STANDARD 20)
+    set(CMAKE_C_STANDARD 17)
+    
+    # Android-specific flags
+    add_compile_definitions(
+        ANDROID
+        __ANDROID__
+    )
+    
+    # Use Vulkan or OpenGL ES 3.0 for Android
+    find_library(log-lib log)
+    find_library(android-lib android)
+    
+    # Find Vulkan (RT64 supports Vulkan)
+    find_library(vulkan-lib vulkan)
+    
+endif()
+
+# Include SDL2 (you'll need to add SDL2 as a submodule or use prebuilt)
+if(ANDROID)
+    add_subdirectory(${CMAKE_SOURCE_DIR}/lib/SDL EXCLUDE_FROM_ALL)
+endif()
+
 # Opt out of constexpr mutex constructor on windows to prevent vcredist issues
 if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR")
+endif()
+
+if(ANDROID)
+    # Copy assets to Android assets folder during build
+    file(COPY "${CMAKE_SOURCE_DIR}/assets/"
+         DESTINATION "${CMAKE_SOURCE_DIR}/Android/app/src/main/assets/")
+    
+    # Link Android-specific libraries
+    target_link_libraries(Goemon64Recompiled
+        SDL2
+        ${log-lib}
+        ${android-lib}
+        ${vulkan-lib}
+    )
+    
+    # Set output directory for .so files
+    set_target_properties(Goemon64Recompiled PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/Android/app/src/main/jniLibs/${ANDROID_ABI}"
+    )
 endif()
 
 if (APPLE)

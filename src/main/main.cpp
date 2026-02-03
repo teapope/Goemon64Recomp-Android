@@ -27,6 +27,16 @@
 #undef Always
 #endif
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
+#include <jni.h>
+
+// Android logging helper
+#define ALOG(...) __android_log_print(ANDROID_LOG_INFO, "Goemon64", __VA_ARGS__)
+#endif
+
 #include "recomp_ui.h"
 #include "recomp_input.h"
 #include "goemon_config.h"
@@ -74,6 +84,15 @@ ultramodern::gfx_callbacks_t::gfx_data_t create_gfx() {
     SDL_SetHint(SDL_HINT_JOYSTICK_HIDAPI_PS5_RUMBLE, "1");
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+
+#ifdef __ANDROID__
+    // Android-specific SDL hints
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    SDL_SetHint(SDL_HINT_ANDROID_SEPARATE_MOUSE_AND_TOUCH, "1");
+    SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");  // Intercept back button
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "vulkan");
+    ALOG("Initializing SDL for Android");
+#endif
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_JOYSTICK) > 0) {
         exit_error("Failed to initialize SDL2: %s\n", SDL_GetError());
@@ -135,17 +154,85 @@ bool SetImageAsIcon(const char* filename, SDL_Window* window)
 
 SDL_Window* window;
 
+#ifdef __ANDROID__
+// Global pointer to asset manager (set from JNI)
+static AAssetManager* g_asset_manager = nullptr;
+
+// Get Android external storage path
+std::filesystem::path get_android_external_path() {
+    // Use SDL to get the external storage path
+    char* base_path = SDL_AndroidGetExternalStoragePath();
+    if (base_path) {
+        std::filesystem::path path = std::filesystem::path(base_path) / "Goemon64Recompiled";
+        SDL_free(base_path);
+        
+        // Create directory if it doesn't exist
+        std::error_code ec;
+        std::filesystem::create_directories(path, ec);
+        
+        return path;
+    }
+    return std::filesystem::current_path();
+}
+
+// Get Android internal storage path
+std::filesystem::path get_android_internal_path() {
+    char* internal_path = SDL_AndroidGetInternalStoragePath();
+    if (internal_path) {
+        std::filesystem::path path = internal_path;
+        SDL_free(internal_path);
+        return path;
+    }
+    return std::filesystem::current_path();
+}
+
+// JNI function to set asset manager (called from Java)
+extern "C" JNIEXPORT void JNICALL
+Java_com_goemon_recomp_MainActivity_setAssetManager(
+    JNIEnv* env, 
+    jobject obj, 
+    jobject assetManager) 
+{
+    g_asset_manager = AAssetManager_fromJava(env, assetManager);
+    ALOG("Asset manager initialized");
+}
+#endif
+
 ultramodern::renderer::WindowHandle create_window(ultramodern::gfx_callbacks_t::gfx_data_t) {
     uint32_t flags = SDL_WINDOW_RESIZABLE;
 
 #if defined(__APPLE__)
     flags |= SDL_WINDOW_METAL;
+#elif defined(__ANDROID__)
+    // Android: Use Vulkan and fullscreen
+    flags |= SDL_WINDOW_VULKAN;
+    flags |= SDL_WINDOW_FULLSCREEN;  // Fullscreen on mobile
+    flags &= ~SDL_WINDOW_RESIZABLE;  // Remove resizable on mobile
+    
+    // Get native screen resolution
+    SDL_DisplayMode display_mode;
+    SDL_GetCurrentDisplayMode(0, &display_mode);
+    int screen_width = display_mode.w;
+    int screen_height = display_mode.h;
+    
+    ALOG("Creating window at resolution: %dx%d", screen_width, screen_height);
+    
+    window = SDL_CreateWindow(
+        "Goemon 64: Recompiled", 
+        SDL_WINDOWPOS_UNDEFINED, 
+        SDL_WINDOWPOS_UNDEFINED, 
+        screen_width,    // Use native resolution
+        screen_height,   // Use native resolution
+        flags
+    );
 #elif defined(RT64_SDL_WINDOW_VULKAN)
     flags |= SDL_WINDOW_VULKAN;
+    window = SDL_CreateWindow("Goemon 64: Recompiled", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1600, 960, flags);
+#else
+    window = SDL_CreateWindow("Goemon 64: Recompiled", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1600, 960, flags);
 #endif
 
-    window = SDL_CreateWindow("Goemon 64: Recompiled", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1600, 960,  flags);
-#if defined(__linux__)
+#if defined(__linux__) && !defined(__ANDROID__)
     SetImageAsIcon("icons/512.png",window);
     if (ultramodern::renderer::get_graphics_config().wm_option == ultramodern::renderer::WindowMode::Fullscreen) { // TODO: Remove once RT64 gets native fullscreen support on Linux
         SDL_SetWindowFullscreen(window,SDL_WINDOW_FULLSCREEN_DESKTOP);
@@ -164,7 +251,11 @@ ultramodern::renderer::WindowHandle create_window(ultramodern::gfx_callbacks_t::
 
 #if defined(_WIN32)
     return ultramodern::renderer::WindowHandle{ wmInfo.info.win.window, GetCurrentThreadId() };
-#elif defined(__linux__) || defined(__ANDROID__)
+#elif defined(__ANDROID__)
+    // Android: Return the SDL_Window directly
+    ALOG("Window created successfully");
+    return ultramodern::renderer::WindowHandle{ window };
+#elif defined(__linux__)
     return ultramodern::renderer::WindowHandle{ window };
 #elif defined(__APPLE__)
     SDL_MetalView view = SDL_Metal_CreateView(window);
@@ -304,12 +395,20 @@ void set_frequency(uint32_t freq) {
 }
 
 void reset_audio(uint32_t output_freq) {
+#ifdef __ANDROID__
+    // Android needs larger buffer for stability
+    uint16_t samples = 0x400;  // Larger buffer for mobile
+    ALOG("Initializing audio at %u Hz with %u sample buffer", output_freq, samples);
+#else
+    uint16_t samples = 0x100;  // Small buffer for desktop
+#endif
+
     SDL_AudioSpec spec_desired{
         .freq = (int)output_freq,
         .format = AUDIO_F32,
         .channels = (Uint8)output_channels,
         .silence = 0, // calculated
-        .samples = 0x100, // Fairly small sample count to reduce the latency of internal buffering
+        .samples = samples,
         .padding = 0, // unused
         .size = 0, // calculated
         .callback = nullptr,
@@ -325,6 +424,10 @@ void reset_audio(uint32_t output_freq) {
 
     output_sample_rate = output_freq;
     update_audio_converter();
+
+#ifdef __ANDROID__
+    ALOG("Audio device opened successfully");
+#endif
 }
 
 // extern RspUcodeFunc njpgdspMain;
@@ -554,9 +657,20 @@ void reorder_texture_pack(recomp::mods::ModContext&) {
 
 #define REGISTER_FUNC(name) recomp::overlays::register_base_export(#name, name)
 
+#ifdef __ANDROID__
+// SDL requires SDL_main on Android
+extern "C" int SDL_main(int argc, char** argv) {
+#else
 int main(int argc, char** argv) {
+#endif
     (void)argc;
     (void)argv;
+
+#ifdef __ANDROID__
+    ALOG("Goemon64Recomp starting on Android");
+    ALOG("Version: %s", version_string.c_str());
+#endif
+
     recomp::Version project_version{};
     if (!recomp::Version::from_string(version_string, project_version)) {
         ultramodern::error_handling::message_box(("Invalid version string: " + version_string).c_str());
@@ -565,12 +679,14 @@ int main(int argc, char** argv) {
 
     // Map this executable into memory and lock it, which should keep it in physical memory. This ensures
     // that there are no stutters from the OS having to load new pages of the executable whenever a new code page is run.
+#ifndef __ANDROID__
     PreloadContext preload_context;
     bool preloaded = preload_executable(preload_context);
 
     if (!preloaded) {
         fprintf(stderr, "Failed to preload executable!\n");
     }
+#endif
 
 #ifdef _WIN32
     // Set up high resolution timing period.
@@ -624,17 +740,46 @@ int main(int argc, char** argv) {
     std::filesystem::current_path("/var/data", ec);
 #endif
 
+#ifdef __ANDROID__
+    // Android-specific initialization
+    
+    // Set working directory to external storage
+    std::filesystem::path android_path = get_android_external_path();
+    std::error_code ec;
+    std::filesystem::current_path(android_path, ec);
+    if (ec) {
+        ALOG("Warning: Could not change to external storage path: %s", ec.message().c_str());
+    } else {
+        ALOG("Working directory: %s", android_path.string().c_str());
+    }
+    
+    // Initialize SDL audio
+    SDL_InitSubSystem(SDL_INIT_AUDIO);
+    reset_audio(48000);
+    
+    // Controller mappings from internal storage (assets)
+    std::filesystem::path controller_db = get_android_internal_path() / "recompcontrollerdb.txt";
+    std::u8string controller_db_path = controller_db.u8string();
+#else
     // Initialize SDL audio and set the output frequency.
     SDL_InitSubSystem(SDL_INIT_AUDIO);
     reset_audio(48000);
 
     // Source controller mappings file
     std::u8string controller_db_path = (goemon64::get_program_path() / "recompcontrollerdb.txt").u8string();
+#endif
+
     if (SDL_GameControllerAddMappingsFromFile(reinterpret_cast<const char *>(controller_db_path.c_str())) < 0) {
         fprintf(stderr, "Failed to load controller mappings: %s\n", SDL_GetError());
     }
 
+#ifdef __ANDROID__
+    // Use Android external storage for config
+    recomp::register_config_path(get_android_external_path());
+    ALOG("Config path: %s", get_android_external_path().string().c_str());
+#else
     recomp::register_config_path(goemon64::get_app_folder_path());
+#endif
 
     // Register supported games and patches
     for (const auto& game : supported_games) {
@@ -717,6 +862,10 @@ int main(int argc, char** argv) {
     // Register the .rtz texture pack file format with the previous content type as its only allowed content type.
     recomp::mods::register_mod_container_type("rtz", std::vector{ texture_pack_content_type_id }, false);
 
+#ifdef __ANDROID__
+    ALOG("Starting recomp engine");
+#endif
+
     recomp::start(
         project_version,
         {},
@@ -730,11 +879,15 @@ int main(int argc, char** argv) {
         threads_callbacks
     );
 
+#ifdef __ANDROID__
+    ALOG("Shutting down");
+#else
     NFD_Quit();
 
     if (preloaded) {
         release_preload(preload_context);
     }
+#endif
 
 #ifdef _WIN32
     // End high resolution timing period.
