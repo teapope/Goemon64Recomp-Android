@@ -1,36 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
+
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.goemon.recomp">
-
-    <!-- Permissions -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-    
-    <!-- OpenGL ES 3.0 or Vulkan required -->
-    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
-    
-    <!-- Support for all screen sizes -->
-    <supports-screens
-        android:smallScreens="true"
-        android:normalScreens="true"
-        android:largeScreens="true"
-        android:xlargeScreens="true" />
-
-    <application
-        android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
-        android:label="Goemon 64 Recompiled"
-        android:requestLegacyExternalStorage="true"
-        android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-        
-        <activity
-            android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            android:exported="true"
-            android:launchMode="singleTask"
-            android:screenOrientation="sensorLandscape">
+          package="com.teapope.goemon">
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
+    <uses-feature android:name="android.hardware.vulkan.level" android:required="false" />
+    <uses-feature android:name="android.hardware.vulkan.version" android:required="false" />
+    <uses-feature android:glEsVersion="0x00030000" android:required="false" />
+    <application android:label="Goemon 64: Recompiled" android:allowBackup="true">
+        <!-- Use SDLActivity from the SDL2 submodule -->
+        <activity android:name="org.libsdl.app.SDLActivity"
+                  android:label="Goemon 64"
+                  android:exported="true"
+                  android:screenOrientation="sensorLandscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
